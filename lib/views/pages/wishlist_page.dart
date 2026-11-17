@@ -1,201 +1,130 @@
 import 'package:flutter/material.dart';
-import '../../models/product_model.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
 import '../../services/local_storage_service.dart';
-import '../../theme/app_theme.dart';
 import 'detail_page.dart';
 
-class FavoritePage extends StatefulWidget {
-  const FavoritePage({super.key});
+class WishlistPage extends StatelessWidget {
+  const WishlistPage({super.key});
 
-  @override
-  State<FavoritePage> createState() => _FavoritePageState();
-}
-
-class _FavoritePageState extends State<FavoritePage> {
-  List<ProductModel> _favorites = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadFavorites();
-  }
-
-  Future<void> _loadFavorites() async {
-    setState(() => _isLoading = true);
-    final favs = await LocalStorageService.getFavorites();
-    if (!mounted) return;
-    setState(() {
-      _favorites = favs.cast<ProductModel>();
-      _isLoading = false;
-    });
-  }
-
-  Future<void> _removeFavorite(ProductModel product, int index) async {
-    final removed = product;
-    setState(() {
-      _favorites.removeAt(index);
-    });
-
-    await LocalStorageService.removeFavorite(removed.id);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${removed.title} berhasil dihapus dari favorit'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
+  static const Color shopeeOrange = Color(0xFFEE4D2D);
 
   @override
   Widget build(BuildContext context) {
+    final messenger = ScaffoldMessenger.of(context);
+
     return Scaffold(
-      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text('Wishlist Produk'),
+        title: const Text('Wishlist Saya'),
+        backgroundColor: shopeeOrange,
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppTheme.primary),
-            )
-          : _favorites.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryLight,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.favorite_border,
-                            size: 44,
-                            color: AppTheme.primary,
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        const Text(
-                          'Daftar favorit masih kosong',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Tekan ikon hati pada karakter untuk menambahkannya ke daftar favorit',
-                          style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+      body: ValueListenableBuilder(
+        valueListenable: LocalStorageService.getWishlistBox().listenable(),
+        builder: (_, box, _) {
+          final items = LocalStorageService.getWishlist();
+
+          if (items.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.favorite_border,
+                    size: 70,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Wishlist Masih Kosong',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Ayo simpan produk favoritmu di sini!',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            itemCount: items.length,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            itemBuilder: (ctx, index) {
+              final product = items[index];
+
+              return Card(
+                elevation: 1,
+                color: Colors.white,
+                margin: const EdgeInsets.symmetric(vertical: 5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  leading: Container(
+                    width: 55,
+                    height: 55,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Image.network(
+                      product.thumbnail,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) =>
+                          const Icon(Icons.broken_image, size: 30),
                     ),
                   ),
-                )
-              : RefreshIndicator(
-                  color: AppTheme.primary,
-                  onRefresh: _loadFavorites,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: _favorites.length,
-                    itemBuilder: (context, index) {
-                      final character = _favorites[index];
+                  title: Text(
+                    product.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    '\$${product.price}',
+                    style: const TextStyle(
+                      color: shopeeOrange,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () {
+                      final title = product.title;
+                      final id = product.id;
 
-                      return Dismissible(
-                        key: Key('fav_${character.id}'),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.error,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Text(
-                                'Hapus',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              Icon(Icons.delete, color: Colors.white),
-                            ],
-                          ),
-                        ),
-                        onDismissed: (_) {
-                          _removeFavorite(character, index);
-                        },
-                        child: Card(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          child: ListTile(
-                            leading: character.images.isNotEmpty
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.network(
-                                      character.images.first,
-                                      width: 50,
-                                      height: 50,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          const Icon(Icons.broken_image, size: 40),
-                                    ),
-                                  )
-                                : const Icon(Icons.person, size: 40),
-                            title: Text(
-                              character.title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.textPrimary,
-                              ),
-                            ),
-                            // subtitle: Text(
-                            //   character.jutsu.isNotEmpty
-                            //       ? character.jutsu.first
-                            //       : 'Tidak ada jutsu tercatat',
-                            //   maxLines: 1,
-                            //   overflow: TextOverflow.ellipsis,
-                            //   style: const TextStyle(color: AppTheme.textSecondary),
-                            // ),
-                            trailing: const Icon(
-                              Icons.arrow_forward_ios,
-                              size: 16,
-                              color: AppTheme.textSecondary,
-                            ),
-                            onTap: () async {
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => DetailPage(product: character),
-                                ),
-                              );
-                              _loadFavorites();
-                            },
-                          ),
+                      LocalStorageService.removeWishlist(id);
+
+                      messenger.hideCurrentSnackBar();
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text('$title dihapus dari wishlist'),
+                          backgroundColor: Colors.red,
+                          duration: const Duration(seconds: 2),
                         ),
                       );
                     },
                   ),
+                  onTap: () {
+                    Navigator.push(
+                      ctx,
+                      MaterialPageRoute(
+                        builder: (_) => DetailPage(productId: product.id),
+                      ),
+                    );
+                  },
                 ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
